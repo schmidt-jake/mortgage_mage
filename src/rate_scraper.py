@@ -28,7 +28,7 @@ def get_rate_distribution(
     )
     response.raise_for_status()
     data = pd.Series(response.json()["data"], name="num_lenders")
-    data.index = data.index.astype(float)
+    data.index = data.index.astype(float) / 100
     data.index.name = "interest_rate"
     return data
 

@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Generator, Optional, Tuple
+from typing import Final, Generator, NamedTuple, Tuple
 
 import numpy_financial as npf
 import pandas as pd
@@ -45,115 +47,171 @@ import pandas as pd
 #     purchase_price: float = Field(gt=0)
 
 
-class Simulator(ABC):
+class Property(object):
     def __init__(
-        self,
-        num_months: int,
-        loan_amount: float,
-        purchase_price: float,
-        appreciation_rate: float,
+        self, purchase_price: float, tax_rate: float, annual_insurance_cost: float
     ):
-        self.num_months = num_months
-        self.loan_amount = loan_amount
-        self.purchase_price = purchase_price
-        self.appreciation_rate = appreciation_rate
+        self.purchase_price: Final = purchase_price
+        self.value = purchase_price
+        self.tax_rate = tax_rate
+        self.annual_insurance_cost = annual_insurance_cost
+
+    @property
+    def tax_liability(self) -> float:
+        return self.value * self.tax_rate
+
+    @property
+    def escrow_payment(self) -> float:
+        return (self.tax_liability + self.annual_insurance_cost) / 12
+
+
+class Mortgage(object):
+    class Payment(NamedTuple):
+        principal: float
+        interest: float
+
+    def __init__(self, term_months: int, amount: int, interest_rate: float):
+        self.term_months: Final = term_months
+        self.amount: Final = amount
+        self.interest_rate = interest_rate
+        self.principal_paid = 0.0
+
+    def payment(self, month: int) -> Mortgage.Payment:
+        monthly_rate = (1 + self.interest_rate) ** (1 / 12) - 1
+        interest = -npf.ipmt(
+            rate=monthly_rate,
+            per=month,
+            nper=self.term_months,
+            pv=self.amount,
+        ).squeeze()
+        principal = -npf.ppmt(
+            rate=monthly_rate,
+            per=month,
+            nper=self.term_months,
+            pv=self.amount,
+        )
+        return Mortgage.Payment(
+            interest=interest,
+            principal=principal,
+        )
+
+    @property
+    def balance(self) -> float:
+        return self.amount - self.principal_paid
+
+    def pay_principal(self, amount: float) -> None:
+        self.principal_paid += amount
+
+
+class SimulatorInterface(ABC):
+    def __init__(
+        self, property: Property, mortgage: Mortgage, holding_period_months: int
+    ):
+        self.property = property
+        self.mortgage = mortgage
+        self.holding_period_months = holding_period_months
         self.reset()
+
+    @property
+    def loan_to_value(self) -> float:
+        return self.mortgage.balance / self.property.value
+
+    @property
+    def down_payment(self) -> float:
+        return self.property.purchase_price - self.mortgage.amount
+
+    def __iter__(self) -> Generator[Tuple[int, float], None, None]:
+        for month in range(self.holding_period_months):
+            cash_flow = 0.0
+            if month == 0:
+                cash_flow += self.on_purchase()
+            cash_flow += self.on_month_begin(month=month)
+            cash_flow += self.on_month_end(month=month)
+            # if i > 1 and i % 12 == 0:
+            #     cash_flow += self.on_year_end(i)
+            #     cash_flow += self.on_year_begin(i)
+            yield month, cash_flow
+        yield month, self.on_sale()
 
     def reset(self) -> None:
-        self.principal_payments = 0.0
+        self.mortgage.principal_paid = 0.0
+        self.property.value = self.property.purchase_price
 
-    def loan_to_value(self, i: int) -> float:
-        appreciation_factor = (1 + self.appreciation_rate) ** (i / 12)
-        return (self.loan_amount - self.principal_payments) / (
-            self.purchase_price * appreciation_factor
-        )
-
-    def pay_principal(self, payment: float) -> None:
-        self.principal_payments += payment
-
-    def cash_flows(self) -> Generator[Tuple[int, float], None, None]:
-        yield 0, self.on_purchase()
-        for i in range(self.num_months):
-            cash_flow = 0.0
-            cash_flow += self.on_month_begin(i)
-            cash_flow += self.on_month_end(i)
-            if i > 1 and i % 12 == 0:
-                cash_flow += self.on_year_end(i)
-                cash_flow += self.on_year_begin(i)
-            yield i, cash_flow
-        yield self.num_months, self.on_sale()
-
-    def run(self, discount_rate: float) -> float:
+    @property
+    def cash_flows(self) -> pd.Series:
         self.reset()
-        monthly_rate = (1 + discount_rate) ** (1 / 12) - 1
-        cash_flows = pd.DataFrame(self.cash_flows(), columns=["month", "cash_flow"])
+        cash_flows = pd.DataFrame(iter(self), columns=["month", "cash_flow"])
         cash_flows = cash_flows.groupby("month")["cash_flow"].sum()
         cash_flows = cash_flows.reindex(
-            pd.RangeIndex(start=0, stop=self.num_months + 1)
+            pd.RangeIndex(start=0, stop=self.holding_period_months + 1)
         ).fillna(0.0)
-        monthly_irr = npf.irr(cash_flows.values)
-        return (1 + monthly_irr) ** (self.num_months / 12) - 1
-        # npv = npf.npv(monthly_rate, cash_flows.values)
-        # return (npv / -self.on_purchase()) ** (12 / self.num_months) - 1
+        return cash_flows
+
+    @property
+    def irr(self) -> float:
+        monthly_irr = npf.irr(self.cash_flows.values)
+        return (1 + monthly_irr) ** (self.holding_period_months / 12) - 1
 
     @abstractmethod
     def on_purchase(self) -> float:
         pass
 
     @abstractmethod
-    def on_month_begin(self, i: int) -> float:
+    def on_month_begin(self, month: int) -> float:
         pass
 
     @abstractmethod
-    def on_month_end(self, i: int) -> float:
+    def on_month_end(self, month: int) -> float:
         pass
 
-    @abstractmethod
-    def on_year_begin(self, i: int) -> float:
-        pass
+    # @abstractmethod
+    # def on_year_begin(self, i: int) -> float:
+    #     pass
 
-    @abstractmethod
-    def on_year_end(self, i: int) -> float:
-        pass
+    # @abstractmethod
+    # def on_year_end(self, i: int) -> float:
+    #     pass
 
     @abstractmethod
     def on_sale(self) -> float:
         pass
 
 
-class MySimulator(Simulator):
+class Simulator(SimulatorInterface):
     def on_purchase(self) -> float:
-        return -20_000
+        # TODO: add any closing costs the seller didn't credit
+        return -self.down_payment
 
-    def on_month_begin(self, i: int) -> float:
-        rent = 3_000
-        interest_payment = 850
-        principal_payment = 680
-        escrow_payment = 763
-        mortgage_payment = interest_payment + principal_payment + escrow_payment
-        if self.loan_to_value(i) > 0.80:
+    @property
+    def monthly_rent(self) -> float:
+        return 3_000.0
+
+    @property
+    def monthly_expenses(self) -> float:
+        return 300
+
+    def on_month_begin(self, month: int) -> float:
+        pmt = self.mortgage.payment(month=month)
+        mortgage_payment = pmt.principal + pmt.interest + self.property.escrow_payment
+        if self.loan_to_value > 0.8:
             pmi_payment = 116
             mortgage_payment += pmi_payment
-        self.pay_principal(principal_payment)
-        return -mortgage_payment + rent
+        self.mortgage.pay_principal(pmt.principal)
+        return -mortgage_payment + self.monthly_rent
 
-    def on_month_end(self, i: int) -> float:
-        utility_expense = 300
-        return -utility_expense
+    def on_month_end(self, month: int) -> float:
+        return -self.monthly_expenses
 
-    def on_year_begin(self, i: int) -> float:
-        return 0
+    # def on_year_begin(self, i: int) -> float:
+    #     return 0
 
-    def on_year_end(self, i: int) -> float:
-        return 0
+    # def on_year_end(self, i: int) -> float:
+    #     return 0
 
     def on_sale(self) -> float:
-        loan_balance = self.loan_amount - self.principal_payments
-        sales_price = self.purchase_price * (1 + self.appreciation_rate) ** (
-            self.num_months / 12
-        )
+        sales_price = self.property.value
         closing_costs = 0.06 * sales_price
-        return sales_price - loan_balance - closing_costs
+        return sales_price - self.mortgage.balance - closing_costs
 
 
 # def build_model(config: Config):
