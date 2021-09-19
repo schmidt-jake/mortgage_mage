@@ -1,5 +1,0 @@
-numpy
-numpy-financial
-pandas
-pymc3
-requests
