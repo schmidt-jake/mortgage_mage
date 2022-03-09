@@ -2,6 +2,7 @@ from abc import ABC
 from abc import abstractmethod
 from abc import abstractproperty
 from concurrent.futures import ThreadPoolExecutor
+from enum import Enum
 import logging
 from typing import Any, Dict, Tuple
 
@@ -90,6 +91,25 @@ class CFPBScraper(RateScraper):
 
 
 class BankrateScraper(RateScraper):
+    class PropertyType(str, Enum):
+        SingleFamily: str = "SingleFamily"
+        Townhouse: str = "Townhouse"
+        Condo4OrFewerStories: str = "Condo4OrFewerStories"
+        Condo5OrMoreStories: str = "Condo5OrMoreStories"
+        Coop: str = "Coop"
+        MobileOrManufactured: str = "MobileOrManufactured"
+        Modular: str = "Modular"
+        Leasehold: str = "Leasehold"
+        MultiFamily2Units: str = "MultiFamily2Units"
+        MultiFamily3Units: str = "MultiFamily3Units"
+        MultiFamily4Units: str = "MultiFamily4Units"
+        Pud: str = "Pud"
+
+    class PropertyUse(str, Enum):
+        PrimaryResidence: str = "PrimaryResidence"
+        SecondaryOrVacation: str = "SecondaryOrVacation"
+        InvestmentOrRental: str = "InvestmentOrRental"
+
     @property
     def url(self) -> str:
         return "https://www.myfinance.com/api/mortgages/purchase/30yr_fixed"
@@ -101,8 +121,8 @@ class BankrateScraper(RateScraper):
             "fico_score": self.fice_score,
             "loan_to_value": self.loan_to_value,
             "product_family": "conventional",
-            "property_type": "SingleFamily",
-            "property_use": "PrimaryResidence",
+            "property_type": BankrateScraper.PropertyType.SingleFamily,
+            "property_use": BankrateScraper.PropertyUse.PrimaryResidence,
             "api_class": "BankrateMortgageRTPApi",
             "veteran_status": "NoMilitaryService",
             "had_prior_va_loan": False,
