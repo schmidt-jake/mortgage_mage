@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import ABC
+from abc import abstractmethod
 from typing import Final, Generator, NamedTuple, Tuple
 
 import numpy_financial as npf
@@ -145,7 +146,8 @@ class SimulatorInterface(ABC):
     @property
     def irr(self) -> float:
         monthly_irr: float = npf.irr(self.cash_flows.values)
-        return (1.0 + monthly_irr) ** (self.holding_period_months / 12.0) - 1.0
+        irr: float = (1.0 + monthly_irr) ** (self.holding_period_months / 12.0) - 1.0
+        return irr
 
     @abstractmethod
     def on_purchase(self) -> float:

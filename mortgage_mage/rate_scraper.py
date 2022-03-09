@@ -1,20 +1,36 @@
-import logging
-from abc import ABC, abstractmethod, abstractproperty
+from abc import ABC
+from abc import abstractmethod
+from abc import abstractproperty
 from concurrent.futures import ThreadPoolExecutor
+import logging
 from typing import Any, Dict, Tuple
 
 import numpy as np
 import pandas as pd
 import requests
 import structlog
-import tenacity
+from tenacity import after_log
+from tenacity import retry
+from tenacity import retry_if_exception_type
+from tenacity import stop_after_attempt
+from tenacity import wait_fixed
 import xarray as xr
 
 logger = structlog.get_logger()
+_retry = retry(
+    retry=retry_if_exception_type((requests.ReadTimeout, requests.HTTPError)),
+    wait=wait_fixed(2),
+    after=after_log(logger, logging.WARN),
+    stop=stop_after_attempt(3),
+)
 
 
 class RateScraper(ABC):
     def __init__(self, price: float, loan_to_value: float, fico_score: int):
+        if loan_to_value >= 1.0:
+            raise ValueError(f"LTV of {loan_to_value} exceeds 1.0")
+        if fico_score <= 350 or fico_score >= 850:
+            raise ValueError(f"Invalid FICO score of {fico_score}")
         self.price = price
         self.loan_to_value = loan_to_value
         self.fice_score = fico_score
@@ -28,30 +44,24 @@ class RateScraper(ABC):
         pass
 
     @abstractmethod
-    def extract_rates(self, response) -> pd.Series:
+    def extract_rates(self, response: Dict[str, Any]) -> pd.Series:
         pass
 
-    @tenacity.retry(
-        retry=tenacity.retry_if_exception_type((requests.ReadTimeout, requests.HTTPError)),
-        wait=tenacity.wait_fixed(2),
-        after=tenacity.after_log(logger, logging.WARN),
-        stop=tenacity.stop_after_attempt(3),
-    )
-    def _get(self, params) -> requests.Response:
+    @_retry
+    def _get(self, params: Dict[str, Any]) -> requests.Response:
         response = requests.get(
             url=self.url,
-            params=params,  # type: ignore
+            params=params,
             timeout=10,
         )
         response.raise_for_status()
         return response
 
-    def __call__(self):
+    def __call__(self) -> pd.Series:
         params = self.query_params()
         logger.info("GETting rates...", **params)
         response = self._get(params)
-        response = response.json()
-        rates = self.extract_rates(response)
+        rates = self.extract_rates(response.json())
         rates.name = "num_lenders"
         rates.index = rates.index.astype(float) / 100
         rates.index.name = "interest_rate"
@@ -60,10 +70,10 @@ class RateScraper(ABC):
 
 class CFPBScraper(RateScraper):
     @property
-    def url(self):
+    def url(self) -> str:
         return "https://www.consumerfinance.gov/oah-api/rates/rate-checker"
 
-    def query_params(self):
+    def query_params(self) -> Dict[str, Any]:
         return {
             "price": self.price,
             "loan_amount": self.price * self.loan_to_value,
@@ -75,16 +85,17 @@ class CFPBScraper(RateScraper):
             "loan_type": "conf",
         }
 
-    def extract_rates(self, response):
+    def extract_rates(self, response: Dict[str, Any]) -> pd.Series:
+        print(type(response))
         return pd.Series(response["data"])
 
 
 class BankrateScraper(RateScraper):
     @property
-    def url(self):
+    def url(self) -> str:
         return "https://www.myfinance.com/api/mortgages/purchase/30yr_fixed"
 
-    def query_params(self):
+    def query_params(self) -> Dict[str, Any]:
         return {
             "zipcode": 77008,
             "loan_amount": int(self.price * self.loan_to_value),
@@ -105,7 +116,7 @@ class BankrateScraper(RateScraper):
             "allow_multiple": True,
         }
 
-    def extract_rates(self, response) -> pd.Series:
+    def extract_rates(self, response: Dict[str, Any]) -> pd.Series:
         df = pd.json_normalize(response["results"])
         rates = df["rate"].value_counts()
         return rates
@@ -125,7 +136,7 @@ def sweep() -> xr.Dataset:
     ]
     with ThreadPoolExecutor() as executor:
         results = executor.map(query, scrapers)
-    x = pd.concat(
+    x_df = pd.concat(
         {
             (
                 scraper.__class__.__name__,
@@ -137,5 +148,5 @@ def sweep() -> xr.Dataset:
         },
         names=["source", "ltv", "fico_score", "price"],
     )
-    x = xr.Dataset.from_dataframe(x.unstack("source"))
+    x = xr.Dataset.from_dataframe(x_df.unstack("source"))
     return x
