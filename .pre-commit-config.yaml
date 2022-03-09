@@ -28,7 +28,7 @@ repos:
       - id: end-of-file-fixer # Ensures that a file is either empty, or ends with one newline.
       # - id: file-contents-sorter # Sort the lines in specified files (defaults to alphabetical). You must provide list of target files as input in your .pre-commit-config.yaml file.
       - id: fix-byte-order-marker # removes UTF-8 byte order marker
-      - id: fix-encoding-pragma # Add # -*- coding: utf-8 -*- to the top of python files
+      # - id: fix-encoding-pragma # Add # -*- coding: utf-8 -*- to the top of python files
       # - id: forbid-new-submodules # Prevent addition of new git submodules
       - id: mixed-line-ending # Replaces or checks mixed line ending
       - id: name-tests-test # This verifies that test files are named correctly
@@ -90,7 +90,7 @@ repos:
       - id: python-no-eval # A quick check for the eval() built-in function
       - id: python-no-log-warn # A quick check for the deprecated .warn() method of python loggers
       - id: python-use-type-annotations # Enforce that python3.6+ type annotations are used instead of type comments
-      - id: rst-backticks # Detect common mistake of using single backticks when writing rst
-      - id: rst-directive-colons # Detect mistake of rst directive not ending with double colon
-      - id: rst-inline-touching-normal # Detect mistake of inline code touching normal text in rst
+      # - id: rst-backticks # Detect common mistake of using single backticks when writing rst
+      # - id: rst-directive-colons # Detect mistake of rst directive not ending with double colon
+      # - id: rst-inline-touching-normal # Detect mistake of inline code touching normal text in rst
       - id: text-unicode-replacement-char # Forbid files which have a UTF-8 Unicode replacement character
