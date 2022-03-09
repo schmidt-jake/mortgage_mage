@@ -86,7 +86,6 @@ class CFPBScraper(RateScraper):
         }
 
     def extract_rates(self, response: Dict[str, Any]) -> pd.Series:
-        print(type(response))
         return pd.Series(response["data"])
 
 
@@ -130,7 +129,7 @@ def sweep() -> xr.Dataset:
     scrapers = [
         scraper(price=price, loan_to_value=ltv, fico_score=fico_score)
         for ltv in np.arange(0.90, 0.97, 0.01).round(2)
-        for fico_score in range(650, 800, 10)
+        for fico_score in range(650, 850, 10)
         for price in range(370_000, 400_000, 10_000)
         for scraper in [BankrateScraper, CFPBScraper]
     ]
