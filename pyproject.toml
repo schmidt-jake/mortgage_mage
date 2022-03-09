@@ -20,8 +20,8 @@ notebook = "^6.4.4"
 seaborn = "^0.11.2"
 pre-commit = "^2.15.0"
 flake8 = "^3.9.2"
-mypy = ">0.910"
-black = "^21.9b0"
+mypy = ">=0.931"
+black = {extras = ["jupyter"], version = "^22.1.0"}
 isort = "^5.9.3"
 pyproject-flake8 = "^0.0.1-alpha.2"
 types-requests = "^2.27.11"
@@ -36,12 +36,13 @@ build-backend = "poetry.core.masonry.api"
 max-line-length = 120
 
 [tool.isort]
-profile = "black"
+profile = "google"
 py_version = "39"
 
 [tool.mypy]
 python_version = 3.9
 ignore_missing_imports = true
+implicit_reexport = true
 show_error_codes = true
 strict = true
 exclude = ".venv"
