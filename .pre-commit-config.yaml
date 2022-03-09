@@ -2,7 +2,7 @@ default_language_version:
   python: python3.8
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.1
+    rev: v4.1.0
     hooks:
       - id: check-added-large-files # Prevent giant files from being committed
       - id: check-ast # Simply check whether the files parse as valid python.
@@ -36,27 +36,51 @@ repos:
       - id: requirements-txt-fixer # Sorts entries in requirements.txt
       - id: sort-simple-yaml # Sorts simple YAML files which consist only of top-level keys, preserving comments and blocks.
       - id: trailing-whitespace # This hook trims trailing whitespace.
-  - repo: https://github.com/PyCQA/flake8
-    rev: 3.9.2
+  - repo: local
     hooks:
-      - id: flake8
-  - repo: https://github.com/PyCQA/isort
-    rev: 5.9.3
-    hooks:
+      - id: bandit
+        name: bandit
+        entry: bandit
+        language: system
+        types: [python]
+        # use require_serial so that script
+        # is only called once per commit
+        require_serial: true
+        # Print the number of files as sanity-check
+        verbose: true
       - id: isort
+        name: isort
+        entry: isort
         args:
-          - --profile=black
-  - repo: https://github.com/psf/black
-    rev: 21.9b0
-    hooks:
+          - --settings-file=pyproject.toml
+        language: system
+        types: [python]
+        require_serial: true
+      - id: flake8
+        name: flake8
+        entry: pflake8
+        args:
+          - --config=pyproject.toml
+        language: system
+        types: [python]
+        require_serial: true
       - id: black
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v0.910
-    hooks:
-      - id: mypy
+        name: black
+        entry: black
         args:
-          - --install-types
-          - --non-interactive
+          - --config=pyproject.toml
+        language: system
+        types: [python]
+        require_serial: true
+      - id: mypy
+        name: mypy
+        entry: mypy
+        args:
+          - --config-file=pyproject.toml
+        language: system
+        types: [python]
+        require_serial: true
+        verbose: true
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.9.0
     hooks:
