@@ -48,9 +48,7 @@ import pandas as pd
 
 
 class Property(object):
-    def __init__(
-        self, purchase_price: float, tax_rate: float, annual_insurance_cost: float
-    ):
+    def __init__(self, purchase_price: float, tax_rate: float, annual_insurance_cost: float):
         self.purchase_price: Final = purchase_price
         self.value = purchase_price
         self.tax_rate = tax_rate
@@ -58,7 +56,8 @@ class Property(object):
 
     @property
     def tax_liability(self) -> float:
-        return self.value * self.tax_rate
+        taxable_value = self.value
+        return taxable_value * self.tax_rate
 
     @property
     def escrow_payment(self) -> float:
@@ -104,9 +103,7 @@ class Mortgage(object):
 
 
 class SimulatorInterface(ABC):
-    def __init__(
-        self, property: Property, mortgage: Mortgage, holding_period_months: int
-    ):
+    def __init__(self, property: Property, mortgage: Mortgage, holding_period_months: int):
         self.property = property
         self.mortgage = mortgage
         self.holding_period_months = holding_period_months
@@ -142,15 +139,13 @@ class SimulatorInterface(ABC):
         self.reset()
         cash_flows = pd.DataFrame(iter(self), columns=["month", "cash_flow"])
         cash_flows = cash_flows.groupby("month")["cash_flow"].sum()
-        cash_flows = cash_flows.reindex(
-            pd.RangeIndex(start=0, stop=self.holding_period_months + 1)
-        ).fillna(0.0)
+        cash_flows = cash_flows.reindex(pd.RangeIndex(start=0, stop=self.holding_period_months + 1)).fillna(0.0)
         return cash_flows
 
     @property
     def irr(self) -> float:
-        monthly_irr = npf.irr(self.cash_flows.values)
-        return (1 + monthly_irr) ** (self.holding_period_months / 12) - 1
+        monthly_irr: float = npf.irr(self.cash_flows.values)
+        return (1.0 + monthly_irr) ** (self.holding_period_months / 12.0) - 1.0
 
     @abstractmethod
     def on_purchase(self) -> float:
@@ -194,7 +189,8 @@ class Simulator(SimulatorInterface):
         pmt = self.mortgage.payment(month=month)
         mortgage_payment = pmt.principal + pmt.interest + self.property.escrow_payment
         if self.loan_to_value > 0.8:
-            pmi_payment = 116
+            # pmi_payment = 116
+            pmi_payment = 0.003 * self.mortgage.amount / 12
             mortgage_payment += pmi_payment
         self.mortgage.pay_principal(pmt.principal)
         return -mortgage_payment + self.monthly_rent
