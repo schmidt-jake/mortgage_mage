@@ -26,6 +26,7 @@ isort = "^5.9.3"
 pyproject-flake8 = "^0.0.1-alpha.2"
 types-requests = "^2.27.11"
 bandit = "^1.7.4"
+pytest = "^7.0.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -36,14 +37,19 @@ max-line-length = 120
 
 [tool.isort]
 profile = "black"
-py_version = "auto"
+py_version = "39"
 
 [tool.mypy]
-python_version = 3.8
+python_version = 3.9
 ignore_missing_imports = true
+show_error_codes = true
 strict = true
 exclude = ".venv"
 
 [tool.black]
 line-length = 120
-target-version = ["py38"]
+target-version = ["py39"]
+
+[tool.pytest]
+addopts = ["-s"]
+log_cli = true
