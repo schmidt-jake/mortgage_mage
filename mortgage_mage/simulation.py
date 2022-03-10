@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from abc import ABC
 from abc import abstractmethod
-from typing import Final, Generator, NamedTuple, Tuple
+from dataclasses import dataclass
+from typing import Final, Generator, Tuple
 
+import numpy as np
 import numpy_financial as npf
 import pandas as pd
 
@@ -48,59 +50,64 @@ import pandas as pd
 #     purchase_price: float = Field(gt=0)
 
 
+@dataclass
 class Property(object):
-    def __init__(self, purchase_price: float, tax_rate: float, annual_insurance_cost: float):
-        self.purchase_price: Final = purchase_price
-        self.value = purchase_price
-        self.tax_rate = tax_rate
-        self.annual_insurance_cost = annual_insurance_cost
+    purchase_price: float
+    tax_rate: float
+    annual_insurance_cost: float
+    value: float
 
     @property
     def tax_liability(self) -> float:
         taxable_value = self.value
+        # TODO: subtract tax deductions from taxable_value
         return taxable_value * self.tax_rate
 
     @property
-    def escrow_payment(self) -> float:
+    def monthly_escrow_payment(self) -> float:
         return (self.tax_liability + self.annual_insurance_cost) / 12
 
 
 class Mortgage(object):
-    class Payment(NamedTuple):
+    @dataclass
+    class Payment(object):
         principal: float
         interest: float
 
-    def __init__(self, term_months: int, amount: int, interest_rate: float):
-        self.term_months: Final = term_months
-        self.amount: Final = amount
-        self.interest_rate = interest_rate
-        self.principal_paid = 0.0
+    def __init__(self, term_months: int, amount: float, interest_rate: float):
+        self.term_months: Final[int] = term_months
+        self.amount: Final[float] = amount
+        self.interest_rate: Final[float] = interest_rate
+        self._principal_paid: float = 0.0
 
-    def payment(self, month: int) -> Mortgage.Payment:
+    def monthly_payment(self, month: int) -> Mortgage.Payment:
         monthly_rate = (1 + self.interest_rate) ** (1 / 12) - 1
-        interest = -npf.ipmt(
+        # monthly_rate = self.interest_rate / 12
+        interest: np.float64 = -npf.ipmt(
             rate=monthly_rate,
-            per=month,
+            per=month + 1,
             nper=self.term_months,
             pv=self.amount,
-        ).squeeze()
-        principal = -npf.ppmt(
+            when="begin",
+        )
+        principal: np.float64 = -npf.ppmt(
             rate=monthly_rate,
-            per=month,
+            per=month + 1,
             nper=self.term_months,
             pv=self.amount,
+            when="begin",
         )
         return Mortgage.Payment(
-            interest=interest,
-            principal=principal,
+            interest=float(interest),
+            principal=float(principal),
         )
 
     @property
     def balance(self) -> float:
-        return self.amount - self.principal_paid
+        return self.amount - self._principal_paid
 
     def pay_principal(self, amount: float) -> None:
-        self.principal_paid += amount
+        self._principal_paid += amount
 
 
 class SimulatorInterface(ABC):
@@ -118,6 +125,10 @@ class SimulatorInterface(ABC):
     def down_payment(self) -> float:
         return self.property.purchase_price - self.mortgage.amount
 
+    @property
+    def equity(self) -> float:
+        return self.property.value - self.mortgage.balance
+
     def __iter__(self) -> Generator[Tuple[int, float], None, None]:
         for month in range(self.holding_period_months):
             cash_flow = 0.0
@@ -132,7 +143,7 @@ class SimulatorInterface(ABC):
         yield month, self.on_sale()
 
     def reset(self) -> None:
-        self.mortgage.principal_paid = 0.0
+        self.mortgage._principal_paid = 0.0
         self.property.value = self.property.purchase_price
 
     @property
@@ -140,7 +151,7 @@ class SimulatorInterface(ABC):
         self.reset()
         cash_flows = pd.DataFrame(iter(self), columns=["month", "cash_flow"])
         cash_flows = cash_flows.groupby("month")["cash_flow"].sum()
-        cash_flows = cash_flows.reindex(pd.RangeIndex(start=0, stop=self.holding_period_months + 1)).fillna(0.0)
+        cash_flows = cash_flows.reindex(pd.RangeIndex(start=0, stop=self.holding_period_months)).fillna(0.0)
         return cash_flows
 
     @property
@@ -181,21 +192,21 @@ class Simulator(SimulatorInterface):
 
     @property
     def monthly_rent(self) -> float:
-        return 3_000.0
+        return 3_600.0
 
     @property
     def monthly_expenses(self) -> float:
-        return 300
+        return 0.0
 
     def on_month_begin(self, month: int) -> float:
-        pmt = self.mortgage.payment(month=month)
-        mortgage_payment = pmt.principal + pmt.interest + self.property.escrow_payment
+        loan_payment = self.mortgage.monthly_payment(month=month)
+        total_payment = loan_payment.principal + loan_payment.interest + self.property.monthly_escrow_payment
         if self.loan_to_value > 0.8:
             # pmi_payment = 116
             pmi_payment = 0.003 * self.mortgage.amount / 12
-            mortgage_payment += pmi_payment
-        self.mortgage.pay_principal(pmt.principal)
-        return -mortgage_payment + self.monthly_rent
+            total_payment += pmi_payment
+        self.mortgage.pay_principal(loan_payment.principal)
+        return self.monthly_rent - total_payment
 
     def on_month_end(self, month: int) -> float:
         return -self.monthly_expenses
