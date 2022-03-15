@@ -1,4 +1,5 @@
 from numpy.testing import assert_allclose
+from pandas.testing import assert_frame_equal
 
 from mortgage_mage import simulation
 
@@ -22,7 +23,8 @@ def test_simulator() -> None:
         purchase_price=394_900.0,
         tax_rate=0.019,
         annual_insurance_cost=1_800.0,
-        value=394_900.0,
+        taxable_value=394_900.0,
+        market_value=394_900.0,
     )
     mortgage = simulation.Mortgage(
         term_months=360,
@@ -34,7 +36,9 @@ def test_simulator() -> None:
         mortgage=mortgage,
         holding_period_months=60,
     )
+    assert_frame_equal(sim.cash_flows, sim.cash_flows)
     print(sim.cash_flows)
-    print(sim.irr)
-    print(sim.equity)
+    print("IRR:", sim.irr)
+    print("Equity:", sim.equity)
+    print("Annual cash-on-cash return:\n", sim.cash_on_cash_return)
     assert sim.irr > 0.0
