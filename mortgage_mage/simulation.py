@@ -10,46 +10,6 @@ import numpy as np
 import numpy_financial as npf
 import pandas as pd
 
-# import pymc3 as pm
-# from pydantic import BaseModel, Field
-
-
-# class Normal(BaseModel):
-#     mean: float
-#     std: float
-
-#     def distribution(self, **kwargs) -> pm.Normal:
-#         return pm.Normal(mu=self.mean, sigma=self.std, **kwargs)
-
-
-# class PositiveTruncatedNormal(Normal):
-#     upper: Optional[float] = Field(default=None, gt=0)
-
-#     def distribution(self, **kwargs) -> pm.TruncatedNormal:
-#         return pm.TruncatedNormal(
-#             mu=self.mean, sigma=self.std, lower=0, upper=self.upper, **kwargs
-#         )
-
-
-# class Poisson(BaseModel):
-#     rate: float = Field(gt=0)
-
-#     def distribution(self, **kwargs) -> pm.Poisson:
-#         return pm.Poisson(mu=self.rate, **kwargs)
-
-
-# class Config(BaseModel):
-#     monthly_rent_revenue: PositiveTruncatedNormal
-#     annual_property_tax_rate: PositiveTruncatedNormal
-#     annual_property_appreciation_rate: Normal
-#     risk_free_rate: float = Field(gt=0)
-#     holding_period_months: int = Field(gt=0)
-#     annual_fixed_costs: float = Field(gt=0)
-#     monthly_variable_costs: Poisson
-#     startup_costs: float = Field(gt=0)
-#     num_simulations: int = Field(gt=0)
-#     purchase_price: float = Field(gt=0)
-
 
 @dataclass
 class Property(object):
