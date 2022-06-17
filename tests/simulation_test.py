@@ -1,5 +1,4 @@
 from numpy.testing import assert_allclose
-from pandas.testing import assert_frame_equal
 
 from mortgage_mage import simulation
 
@@ -36,7 +35,6 @@ def test_simulator() -> None:
         mortgage=mortgage,
         holding_period_months=60,
     )
-    assert_frame_equal(sim.cash_flows, sim.cash_flows)
     print(sim.cash_flows)
     print("IRR:", sim.irr)
     print("Equity:", sim.equity)

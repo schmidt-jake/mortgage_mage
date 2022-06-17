@@ -24,7 +24,7 @@ jobs:
         run: |
           pip install -U pip
           pip install poetry
-          poetry install
+          poetry install --no-root
           poetry run pre-commit run --all-files
       - name: Run tests
         run: |
