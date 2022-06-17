@@ -41,4 +41,4 @@ jobs:
           poetry run mypy --config-file=pyproject.toml .
       - name: Run tests
         run: |
-          poetry run pytest tests/
+          poetry run python -m pytest -c pyproject.toml tests/
