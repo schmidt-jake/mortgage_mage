@@ -13,20 +13,19 @@ requests = "^2.26.0"
 structlog = "^21.1.0"
 xarray = "^0.19.0"
 tenacity = "^8.0.1"
+notebook = {version = "^6.4.12", extras = ["explore"]}
+seaborn = {version = "^0.11.2", extras = ["explore"]}
+pre-commit ={version =  "^2.15.0", extras = ["pre-commit"]}
 
 [tool.poetry.dev-dependencies]
-colorama = "^0.4.4"
-notebook = "^6.4.4"
-seaborn = "^0.11.2"
-pre-commit = "^2.15.0"
-flake8 = "^3.9.2"
-mypy = ">=0.931"
-black = {extras = ["jupyter"], version = "^22.1.0"}
-isort = "^5.9.3"
-pyproject-flake8 = "^0.0.1-alpha.2"
-types-requests = "^2.27.11"
 bandit = "^1.7.4"
+black = "^22.1.0"
+flake8 = "^3.9.2"
+isort = "^5.9.3"
+mypy = ">=0.931"
+pyproject-flake8 = "^0.0.1-alpha.2"
 pytest = "^7.0.1"
+types-requests = "^2.27.11"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
