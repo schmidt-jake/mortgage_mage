@@ -20,11 +20,14 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
-      - name: INstall project dependencies
+      - name: Install project dependencies
         run: |
           pip install -U pip
           pip install poetry
           poetry install --no-root
+          poetry shell
+      - name: Check pyproject.toml
+        run: poetry check
       - name: Check import sorting
         run: |
           isort --settings-path=pyproject.toml --check-only .
