@@ -220,7 +220,7 @@ class Simulator(SimulatorInterface):
         # self.property.taxable_value *= 0.98
         # self.property.market_value *= 0.98
         # TODO: pay income tax
-        return super().on_year_end()
+        return CashFlow(cash_out=self.property.tax_liability)
 
     def on_sale(self) -> CashFlow:
         sales_price = self.property.market_value
