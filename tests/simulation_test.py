@@ -14,7 +14,7 @@ def test_mortgage() -> None:
     for month in range(term_months):
         payment = mortgage.monthly_payment(month)
         mortgage.pay_principal(amount=payment.principal)
-    assert_allclose(mortgage.balance, 0.0, atol=1e-9)  # type: ignore[no-untyped-call]
+    assert_allclose(mortgage.balance, 0.0, atol=1e-9)
 
 
 def test_simulator() -> None:
