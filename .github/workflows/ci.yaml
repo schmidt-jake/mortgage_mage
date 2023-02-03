@@ -23,22 +23,19 @@ jobs:
       - name: Install project dependencies
         run: |
           pip install -U pip
-          pip install poetry
-          poetry install --no-root
-      - name: Check pyproject.toml
-        run: poetry check
+          pip install .[dev]
       - name: Check import sorting
         run: |
-          poetry run isort --settings-path=pyproject.toml --check-only .
+          isort --settings-path=pyproject.toml --check-only .
       - name: Run flake8
         run: |
-          poetry run pflake8 --config=pyproject.toml .
+          pflake8 --config=pyproject.toml .
       - name: Format with black
         run: |
-          poetry run black --config=pyproject.toml --check .
+          black --config=pyproject.toml --check .
       - name: Run mypy
         run: |
-          poetry run mypy --config-file=pyproject.toml .
+          mypy --config-file=pyproject.toml .
       - name: Run tests
         run: |
-          poetry run python -m pytest -c pyproject.toml tests/
+          python -m pytest -c pyproject.toml tests/

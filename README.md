@@ -12,15 +12,15 @@ Model leveraged real estate transactions easily with `mortgage_mage`! Helps you 
 - Computes useful metrics, such as cash-on-cash return and IRR
 - Factors in your personal tax situation
 
+## Installation
+
+```bash
+pip install git+https://github.com/schmidt-jake/mortgage_mage.git
+```
+
 ## Getting Started
 
-After cloning this repo, install `mortgage_mage`:
-
-1. Install python > 3.7.
-1. Install poetry with `pip install poetry`.
-1. Run `poetry install`.
-
-Then, how to use the thing: TBD
+TBD
 
 ## Feature Roadmap
 

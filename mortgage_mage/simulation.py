@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-from abc import ABC
-from abc import abstractmethod
-from dataclasses import asdict
-from dataclasses import dataclass
+from abc import ABC, abstractmethod
+from dataclasses import asdict, dataclass
 from typing import Final, Iterator, List
 
 import numpy as np
@@ -353,12 +351,18 @@ class SimulatorInterface(ABC):
         pass
 
 
-# @dataclass
-# class IncomeTax(object):
-#     marginal_rate: float
+@dataclass
+class IncomeTax(object):
+    marginal_rate: float
 
-#     def liability(self, net_income: float, ) -> float:
-#         return taxable_income * self.marginal_rate
+    def taxable_income():
+        pass
+
+    def liability(
+        self,
+        net_income: float,
+    ) -> float:
+        return self.taxable_income * self.marginal_rate
 
 
 class Simulator(SimulatorInterface):
