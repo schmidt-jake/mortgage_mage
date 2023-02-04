@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-from abc import ABC
-from abc import abstractmethod
-from dataclasses import asdict
-from dataclasses import dataclass
-from typing import Final, Iterator, List
+from abc import ABC, abstractmethod
+from dataclasses import asdict, dataclass
+from logging import getLogger
+from typing import Iterator, List
 
 import numpy as np
 import numpy_financial as npf
 import pandas as pd
+
+logger = getLogger(__name__)
 
 
 @dataclass
@@ -45,34 +46,37 @@ class Property(object):
     def monthly_escrow_payment(self) -> float:
         """
         The amount paid into an escrow account (usually held by the mortgage company)
-        that is set aside for property tax and homeowner's insurance (which gets paid
+        that is set aside for property tax and insurance (which gets paid
         at the end of the year).
         """
         return (self.tax_liability + self.annual_insurance_cost) / 12
 
 
+@dataclass()
 class Mortgage(object):
+    term_months: int
+    amount: float
+    interest_rate: float
+
+    """
+    A mortgage for a property.
+
+    Parameters
+    ----------
+    term_months : int
+        The length (term) of the mortgage, in months. Typically 360 (12 * 30) for a 30-year mortgage.
+    amount : float
+        The initial amount of the loan.
+    interest_rate : float
+        The interest rate on the principal.
+    """
+
     @dataclass
     class Payment(object):
         principal: float
         interest: float
 
-    def __init__(self, term_months: int, amount: float, interest_rate: float):
-        """
-        A mortgage for a property.
-
-        Parameters
-        ----------
-        term_months : int
-            The length (term) of the mortgage, in months. Typically 360 (12 * 30) for a 30-year mortgage.
-        amount : float
-            The initial amount of the loan.
-        interest_rate : float
-            The interest rate on the principal.
-        """
-        self.term_months: Final[int] = term_months
-        self.amount: Final[float] = amount
-        self.interest_rate: Final[float] = interest_rate
+    def __post_init__(self) -> None:
         self._principal_paid: float = 0.0
 
     def monthly_payment(self, month: int) -> Mortgage.Payment:
@@ -89,6 +93,8 @@ class Mortgage(object):
         Mortgage.Payment
             The interest and principal payments for the given month.
         """
+        if month < 0:
+            raise ValueError("`month` should be non-negative!")
         monthly_rate = (1 + self.interest_rate) ** (1 / 12) - 1
         # monthly_rate = self.interest_rate / 12
         interest: np.float64 = -npf.ipmt(
@@ -96,14 +102,14 @@ class Mortgage(object):
             per=month + 1,
             nper=self.term_months,
             pv=self.amount,
-            when="begin",
+            when="end",
         )
         principal: np.float64 = -npf.ppmt(
             rate=monthly_rate,
             per=month + 1,
             nper=self.term_months,
             pv=self.amount,
-            when="begin",
+            when="end",
         )
         return Mortgage.Payment(
             interest=float(interest),
@@ -183,58 +189,64 @@ class SimulatorInterface(ABC):
         self.down_payment = self.property.purchase_price - self.mortgage.amount
         self.reset()
 
+    def __repr__(self) -> str:
+        return f"{self.property}\n{self.mortgage}"
+
     @property
     def loan_to_value(self) -> float:
         """
         The loan-to-value ratio at the current point in the simulation, defined as:
-        `self.mortgage.balance / self.property.taxable_value`
+        `self.mortgage.balance / self.property.market_value`
 
         Returns
         -------
         float
             The LTV.
         """
-        return self.mortgage.balance / self.property.taxable_value
+        return self.mortgage.balance / self.property.market_value
 
     @property
     def equity(self) -> float:
         """
         Your owner's equity in the property at the current point in the simulation,
         as defined by:
-        `self.property.taxable_value - self.mortgage.balance`
+        `self.property.market_value - self.mortgage.balance`
 
         Returns
         -------
         float
             The equity amount.
         """
-        return self.property.taxable_value - self.mortgage.balance
+        return self.property.market_value - self.mortgage.balance
 
     def __next__(self) -> CashFlow:
-        if self.month == self.holding_period_months:
-            raise StopIteration
-        net_cash_flow = CashFlow()
-        if self.month == 0:
-            net_cash_flow += self.on_purchase()
-        net_cash_flow += self.on_month_begin()
-        net_cash_flow += self.on_month_end()
-        if self.month % 12 == 0:
-            net_cash_flow += self.on_year_end()
-        if self.month == self.holding_period_months - 1:
-            net_cash_flow += self.on_sale()
-        self._cash_flows.append(net_cash_flow)
         self.month += 1
-        return net_cash_flow
+        if self.month == self.holding_period_months:
+            logger.debug("End of simulation period reached.")
+            raise StopIteration
+        cash_flow = CashFlow()
+        if self.month == 0:
+            cash_flow += self.on_purchase()
+        cash_flow += self.on_month_begin()
+        cash_flow += self.on_month_end()
+        if self.month % 12 == 0:
+            cash_flow += self.on_year_end()
+        if self.month == self.holding_period_months - 1:
+            cash_flow += self.on_sale()
+        self._cash_flows.append(cash_flow)
+        return cash_flow
 
     def __iter__(self) -> Iterator[CashFlow]:
         self.reset()
+        logger.debug("Starting simulation...")
         return self
 
     def reset(self) -> None:
         """
         Resets the simulation to its initial state.
         """
-        self.month = 0
+        logger.debug("Resetting simulation...")
+        self.month = -1
         self.mortgage._principal_paid = 0.0
         self.property.taxable_value = self.property.purchase_price
         self._cash_flows: List[CashFlow] = []
@@ -252,8 +264,11 @@ class SimulatorInterface(ABC):
                 - cash_in: float
                 - cash_out: float
         """
+        if len(self._cash_flows) == 0:
+            for _ in self:
+                continue
         cash_flows = pd.DataFrame.from_records(
-            [{"month": month, **asdict(cash_flow)} for month, cash_flow in enumerate(self)]
+            [{"month": month, **asdict(cash_flow)} for month, cash_flow in enumerate(self._cash_flows)]
         )
         cash_flows["net"] = cash_flows["cash_in"] - cash_flows["cash_out"]
         return cash_flows
@@ -270,15 +285,15 @@ class SimulatorInterface(ABC):
     @property
     def cash_on_cash_return(self) -> pd.Series:
         """
-        The cash-on-cash return, by year.
+        The cash-on-cash return, by month.
 
         Returns
         -------
         pd.Series
-            Cash-on-cash return. The index represents the year number.
+            Cash-on-cash return. The index represents the month number.
         """
-        annual_cash_flows = self.annual_cash_flows
-        cash_on_cash_return = annual_cash_flows["net"] / annual_cash_flows["cash_out"]
+        cash_flows = self.annual_cash_flows
+        cash_on_cash_return = cash_flows["net"] / cash_flows["cash_out"]
         cash_on_cash_return.name = "cash_on_cash_return"
         cash_on_cash_return.index.name = "year"
         return cash_on_cash_return
@@ -286,11 +301,10 @@ class SimulatorInterface(ABC):
     @property
     def irr(self) -> float:
         """
-        The annual internal rate of return of the annual cash flows.
+        The internal rate of return of the annual cash flows.
         """
-        annual_cash_flows = self.annual_cash_flows
-        irr: float = npf.irr(annual_cash_flows["net"].values)
-        return irr
+        monthly_irr: float = npf.irr(self.cash_flows["net"].values)
+        return (1 + monthly_irr) ** 12 - 1
 
     @abstractmethod
     def on_purchase(self) -> CashFlow:
@@ -357,8 +371,14 @@ class SimulatorInterface(ABC):
 # class IncomeTax(object):
 #     marginal_rate: float
 
-#     def liability(self, net_income: float, ) -> float:
-#         return taxable_income * self.marginal_rate
+#     def taxable_income():
+#         pass
+
+#     def liability(
+#         self,
+#         net_income: float,
+#     ) -> float:
+#         return self.taxable_income * self.marginal_rate
 
 
 class Simulator(SimulatorInterface):
@@ -379,9 +399,9 @@ class Simulator(SimulatorInterface):
     def on_month_begin(self) -> CashFlow:
         loan_payment = self.mortgage.monthly_payment(month=self.month)
         total_payment = loan_payment.principal + loan_payment.interest + self.property.monthly_escrow_payment
-        if self.loan_to_value > 0.8:
-            # pmi_payment = 116
-            pmi_payment = 0.004 * self.mortgage.amount / 12
+        if self.loan_to_value >= 0.75:
+            # pmi_payment = 0.004 * self.mortgage.amount / 12
+            pmi_payment = 180
             total_payment += pmi_payment
         self.mortgage.pay_principal(loan_payment.principal)
         return CashFlow(cash_in=self.monthly_rent, cash_out=total_payment)
@@ -390,36 +410,32 @@ class Simulator(SimulatorInterface):
         return CashFlow(cash_out=self.monthly_expenses)
 
     def on_year_end(self) -> CashFlow:
-        # TODO: account for change in property's taxable value
-        # self.property.taxable_value *= 0.98
-        # self.property.market_value *= 0.98
-        # TODO: pay income tax
-        return CashFlow(cash_out=self.property.tax_liability)
+        return CashFlow()
 
     def on_sale(self) -> CashFlow:
-        sales_price = self.property.market_value
-        closing_costs = 0.06 * sales_price
-        # TODO: is the right way to model the sale's cash flows?
+        closing_costs = 0.06 * self.property.market_value
+        # TODO: is this the right way to model the sale's cash flows?
         return CashFlow(
-            cash_in=sales_price - self.mortgage.balance,
+            cash_in=self.equity,
             cash_out=closing_costs,
         )
 
 
-# def build_model(config: Config):
-#     monthly_rent_revenue = config.monthly_rent_revenue.distribution(
-#         shape=config.num_simulations
-#     )
-#     annual_property_tax_rate = config.annual_property_tax_rate.distribution(
-#         shape=config.num_simulations
-#     )
-#     annual_property_appreciation_rate = (
-#         config.annual_property_appreciation_rate.distribution(
-#             shape=config.num_simulations
-#         )
-#     )
-#     rents = monthly_rent_revenue.random(size=config.holding_period_months)
-#     tax_rates = annual_property_tax_rate.random(size=config.holding_period_months // 12)
-#     appr = annual_property_appreciation_rate.random(
-#         size=config.holding_period_months // 12
-#     )
+class StochasticSimulator(Simulator):
+    @property
+    def monthly_rent(self) -> float:
+        occupancy = np.random.binomial(n=1, p=0.7)
+        monthly_rent = np.random.normal(3_700.0, 50.0)
+        return occupancy * monthly_rent
+
+    @property
+    def monthly_expenses(self) -> float:
+        return 200 * np.random.pareto(10) / 10
+
+    def on_year_end(self) -> CashFlow:
+        x = np.random.normal(1.01, 0.02)
+        self.property.market_value *= x
+        self.property.taxable_value *= x
+        self.property.tax_rate *= np.random.normal(1.0, 0.02)
+        self.property.annual_insurance_cost *= x
+        return super().on_year_end()

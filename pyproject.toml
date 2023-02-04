@@ -1,55 +1,61 @@
-[tool.poetry]
-name = "mortgage_mage"
-version = "0.1.0"
-description = "A financial modeler for mortgaged rental property"
-authors = ["Jake Schmidt <schmidt.jake.c@gmail.com>"]
+[project]
+name = "mammography"
+dynamic = ["version"]
+dependencies = [
+    "numpy",
+    "numpy-financial",
+    "pandas",
+    "requests",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.8,<3.11"
-numpy = "^1.21.2"
-numpy-financial = "^1.0.0"
-pandas = "^1.3.3"
-requests = "^2.26.0"
-structlog = "^21.1.0"
-xarray = "^0.19.0"
-tenacity = "^8.0.1"
-notebook = {version = "^6.4.12", extras = ["explore"]}
-seaborn = {version = "^0.11.2", extras = ["explore"]}
-pre-commit = {version =  "^2.15.0", extras = ["pre-commit"]}
-
-[tool.poetry.dev-dependencies]
-bandit = "^1.7.4"
-black = "^22.1.0"
-flake8 = "^3.9.2"
-isort = "^5.9.3"
-mypy = ">=0.931"
-pyproject-flake8 = "^0.0.1-alpha.2"
-pytest = "^7.0.1"
-types-requests = "^2.27.11"
+[project.optional-dependencies]
+dev = [
+    "bandit[toml]",
+    "build",
+    "black",
+    "flake8",
+    "isort",
+    "mypy",
+    "pre-commit",
+    "pyproject-flake8",
+    "pytest",
+    "typeguard",
+    "types-requests",
+]
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools", "setuptools_scm[toml]"]
+build-backend = "setuptools.build_meta"
+
+[tool.bandit]
+exclude = "tests"
 
 [tool.flake8]
 max-line-length = 120
+max-complexity = 10
 
 [tool.isort]
-profile = "google"
-py_version = "39"
+profile = "black"
+py_version = "310"
 
 [tool.mypy]
-python_version = 3.9
+python_version = "3.10"
 ignore_missing_imports = true
 implicit_reexport = true
 show_error_codes = true
-strict = true
-exclude = ".venv"
+strict = false
+exclude = "venv"
 
 [tool.black]
 line-length = 120
-target-version = ["py39"]
+target-version = ["py310"]
 
-[tool.pytest]
-addopts = ["-s"]
+[tool.pytest.ini_options]
+addopts = ["-s", "--typeguard-packages=mortgage_mage,tests"]
 log_cli = true
+log_cli_level = "INFO"
+
+[tool.setuptools_scm]
+
+[tool.setuptools]
+packages = ["mortgage_mage"]

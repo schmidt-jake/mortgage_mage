@@ -1,8 +1,8 @@
 default_language_version:
-  python: python3.8
+  python: python3.10
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.3.0
+    rev: v4.4.0
     hooks:
       - id: check-added-large-files # Prevent giant files from being committed
       - id: check-ast # Simply check whether the files parse as valid python.
@@ -49,7 +49,7 @@ repos:
         # Print the number of files as sanity-check
         verbose: true
         args:
-          - -x=tests/
+          - --configfile=pyproject.toml
       - id: isort
         name: isort
         entry: isort
@@ -84,7 +84,7 @@ repos:
         require_serial: true
         verbose: true
   - repo: https://github.com/pre-commit/pygrep-hooks
-    rev: v1.9.0
+    rev: v1.10.0
     hooks:
       - id: python-check-blanket-noqa # Enforce that noqa annotations always occur with specific codes. Sample annotations: # noqa: F401, # noqa: F401,W203
       - id: python-check-blanket-type-ignore # Enforce that # type: ignore annotations always occur with specific codes. Sample annotations: # type: ignore[attr-defined], # type: ignore[attr-defined, name-defined]

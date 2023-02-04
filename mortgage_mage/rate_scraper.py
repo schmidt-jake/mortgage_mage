@@ -1,29 +1,14 @@
-from abc import ABC
-from abc import abstractmethod
-from abc import abstractproperty
+import logging
+from abc import ABC, abstractmethod, abstractproperty
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
-import logging
 from typing import Any, Dict, Tuple
 
 import numpy as np
 import pandas as pd
 import requests
-import structlog
-from tenacity import after_log
-from tenacity import retry
-from tenacity import retry_if_exception_type
-from tenacity import stop_after_attempt
-from tenacity import wait_fixed
-import xarray as xr
 
-logger = structlog.get_logger()
-_retry = retry(
-    retry=retry_if_exception_type((requests.ReadTimeout, requests.HTTPError)),
-    wait=wait_fixed(2),
-    after=after_log(logger, logging.WARN),
-    stop=stop_after_attempt(3),
-)
+logger = logging.getLogger(__name__)
 
 
 class RateScraper(ABC):
@@ -48,7 +33,6 @@ class RateScraper(ABC):
     def extract_rates(self, response: Dict[str, Any]) -> pd.Series:
         pass
 
-    @_retry
     def _get(self, params: Dict[str, Any]) -> requests.Response:
         response = requests.get(
             url=self.url,
@@ -60,7 +44,7 @@ class RateScraper(ABC):
 
     def __call__(self) -> pd.Series:
         params = self.query_params()
-        logger.info("GETting rates...", **params)
+        logger.info(f"GETting rates...\n{params}")
         response = self._get(params)
         rates = self.extract_rates(response.json())
         rates.name = "num_lenders"
@@ -141,31 +125,31 @@ class BankrateScraper(RateScraper):
         return rates
 
 
-def sweep() -> xr.Dataset:
-    def query(scraper: RateScraper) -> Tuple[RateScraper, pd.Series]:
-        rates = scraper()
-        return scraper, rates
+# def sweep() -> xr.Dataset:
+#     def query(scraper: RateScraper) -> Tuple[RateScraper, pd.Series]:
+#         rates = scraper()
+#         return scraper, rates
 
-    scrapers = [
-        scraper(price=price, loan_to_value=ltv, fico_score=fico_score)
-        for ltv in np.arange(0.90, 0.97, 0.01).round(2)
-        for fico_score in range(650, 850, 10)
-        for price in range(370_000, 400_000, 10_000)
-        for scraper in [BankrateScraper, CFPBScraper]
-    ]
-    with ThreadPoolExecutor() as executor:
-        results = executor.map(query, scrapers)
-    x_df = pd.concat(
-        {
-            (
-                scraper.__class__.__name__,
-                scraper.loan_to_value,
-                scraper.fice_score,
-                scraper.price,
-            ): rates
-            for scraper, rates in results
-        },
-        names=["source", "ltv", "fico_score", "price"],
-    )
-    x = xr.Dataset.from_dataframe(x_df.unstack("source"))
-    return x
+#     scrapers = [
+#         scraper(price=price, loan_to_value=ltv, fico_score=fico_score)
+#         for ltv in np.arange(0.90, 0.97, 0.01).round(2)
+#         for fico_score in range(650, 850, 10)
+#         for price in range(370_000, 400_000, 10_000)
+#         for scraper in [BankrateScraper, CFPBScraper]
+#     ]
+#     with ThreadPoolExecutor() as executor:
+#         results = executor.map(query, scrapers)
+#     x_df = pd.concat(
+#         {
+#             (
+#                 scraper.__class__.__name__,
+#                 scraper.loan_to_value,
+#                 scraper.fice_score,
+#                 scraper.price,
+#             ): rates
+#             for scraper, rates in results
+#         },
+#         names=["source", "ltv", "fico_score", "price"],
+#     )
+#     x = xr.Dataset.from_dataframe(x_df.unstack("source"))
+#     return x
